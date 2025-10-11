@@ -8,11 +8,11 @@ app.get("/api/auth/signup", (req,res) => {
 });
 
 app.get("/api/auth/login", (req,res) => {
-    res.send("login endpoint");
+    res.send("Login endpoint");
 });
 
-app.get("/api/auth/login", (req,res) => {
-    res.send("login endpoint");
+app.get("/api/auth/logout", (req,res) => {
+    res.send("Logout endpoint");
 });
 
 
