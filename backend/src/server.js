@@ -1,23 +1,32 @@
-// const express = require('express');
-import express from 'express';
+import express from "express";
 
-const app = express();
+import dotenv from "dotenv";
+import path from "path";
 
-console.log(process.env.PORT);
+import authRoutes from "./routes/auth.route.js";
+import messageRoutes from "./routes/message.route.js";
 
-app.get("/api/auth/signup", (req,res) => {
-    res.send("Signup endpoint");
-});
+dotenv.config();
 
-app.get("/api/auth/login", (req,res) => {
-    res.send("Login endpoint");
-});
+const __dirname = path.resolve();
 
-app.get("/api/auth/logout", (req,res) => {
-    res.send("Logout endpoint");
-});
+const PORT = process.env.PORT || 3000;
 
 
-app.listen(3000, () => {
-    console.log("Server is running on port 3000..");
+
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
+
+// deployment
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+  app.get("*", (_, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
+
+server.listen(PORT, () => {
+  console.log("Server running on port: " + PORT);
 });
