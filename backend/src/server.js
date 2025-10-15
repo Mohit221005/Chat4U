@@ -8,6 +8,8 @@ import messageRoutes from "./routes/message.route.js";
 
 dotenv.config();
 
+const app = express();
+
 const __dirname = path.resolve();
 
 const PORT = process.env.PORT || 3000;
@@ -27,6 +29,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log("Server running on port: " + PORT);
 });
