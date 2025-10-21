@@ -17,7 +17,9 @@ export const generateToken = (userId,res) => {
         httpOnly:true, // cross side scripting
         sameSite:"strict",
         secure: ENV.NODE_ENV === "development" ? false : true,
-    })
+    });
+
+    return token;
 }; 
 
 
