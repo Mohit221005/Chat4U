@@ -5,6 +5,7 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { ENV } from "../lib/env.js";
+import cloudinary from "../lib/cloudinary.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -96,7 +97,6 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const logout = (_, res) => {
   res.cookie("jwt", "", { maxAge: 0 });
