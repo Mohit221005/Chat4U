@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+<<<<<<< HEAD
   "engines": {
-    "node": ">=21.0.0"  },
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
-    "start": "npm run start --prefix backend",
+    "start": "npm run start --prefix backend"
+=======
+  "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+>>>>>>> 05cd698 (nothing)
   },
   "repository": {
     "type": "git",
@@ -17,9 +22,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+<<<<<<< HEAD
+=======
   "type": "commonjs",
+>>>>>>> 05cd698 (nothing)
   "bugs": {
-    "url": "https://github.com/Mohit221005/Chat4U/issues"
-  },
-  "homepage": "https://github.com/Mohit221005/Chat4U#readme"
-}
+    "url": "https://github.com/Mohit22100
