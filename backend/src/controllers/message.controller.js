@@ -2,11 +2,14 @@ import cloudinary from "../lib/cloudinary.js";
 // import { getReceiverSocketId, io } from "../lib/socket.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
+import mongoose from "mongoose";
 
 export const getAllContacts = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+    const filteredUsers = await User.find({
+      _id: { $ne: loggedInUserId },
+    }).select("-password");
 
     res.status(200).json(filteredUsers);
   } catch (error) {
@@ -19,6 +22,10 @@ export const getMessagesByUserId = async (req, res) => {
   try {
     const myId = req.user._id;
     const { id: userToChatId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(userToChatId)) {
+      return res.status(400).json({ error: "Invalid user ID format" });
+    }
 
     const messages = await Message.find({
       $or: [
@@ -44,7 +51,9 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "Text or image is required." });
     }
     if (senderId.equals(receiverId)) {
-      return res.status(400).json({ message: "Cannot send messages to yourself." });
+      return res
+        .status(400)
+        .json({ message: "Cannot send messages to yourself." });
     }
     const receiverExists = await User.exists({ _id: receiverId });
     if (!receiverExists) {
@@ -53,11 +62,37 @@ export const sendMessage = async (req, res) => {
 
     let imageUrl;
     if (image) {
-      // upload base64 image to cloudinary
-      const uploadResponse = await cloudinary.uploader.upload(image);
-      imageUrl = uploadResponse.secure_url;
-    }
+      // Validate base64 format
+      const base64Regex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,/;
+      if (!base64Regex.test(image)) {
+        return res
+          .status(400)
+          .json({
+            message: "Invalid image format. Expected base64-encoded image.",
+          });
+      }
 
+      // Check approximate size (base64 is ~33% larger than binary)
+      const sizeInBytes = (image.length * 3) / 4;
+      const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+      if (sizeInBytes > maxSizeInBytes) {
+        return res
+          .status(400)
+          .json({ message: "Image size exceeds 5MB limit." });
+      }
+
+      // upload base64 image to cloudinary
+      try {
+        const uploadResponse = await cloudinary.uploader.upload(image, {
+          resource_type: "auto",
+          timeout: 60000, // 60 second timeout
+        });
+        imageUrl = uploadResponse.secure_url;
+      } catch (uploadError) {
+        console.error("Cloudinary upload error:", uploadError);
+        return res.status(500).json({ message: "Failed to upload image." });
+      }
+    }
     const newMessage = new Message({
       senderId,
       receiverId,
@@ -66,7 +101,7 @@ export const sendMessage = async (req, res) => {
     });
 
     await newMessage.save();
-
+    //TODO: emit a socket event for the receiver here
     // const receiverSocketId = getReceiverSocketId(receiverId);
     // if (receiverSocketId) {
     //   io.to(receiverSocketId).emit("newMessage", newMessage);
@@ -98,7 +133,9 @@ export const getChatPartners = async (req, res) => {
       ),
     ];
 
-    const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
+    const chatPartners = await User.find({
+      _id: { $in: chatPartnerIds },
+    }).select("-password");
 
     res.status(200).json(chatPartners);
   } catch (error) {
