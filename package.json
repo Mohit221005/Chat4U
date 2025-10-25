@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/Mohit221005/Chat4U/issues"
   },
-  "homepage": "https://github.com/Mohit221005/Chat4U#readme"
+  "homepage": "https://github.com/Mohit221005/Chat4U#readme",
+  "dependencies": {
+    "zustand": "^5.0.3"
+  }
 }
