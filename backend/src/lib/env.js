@@ -3,7 +3,7 @@ import "dotenv/config";
 export const ENV = {
   PORT: process.env.PORT,
   MONGO_URI: process.env.MONGO_URI,
-  CLIENT_URL: process.env.NODE_ENV === "production" ? process.env.CLIENT_URL : "http://localhost:5173",
+  CLIENT_URL: process.env.CLIENT_URL || (process.env.NODE_ENV === "production" ? undefined : "http://localhost:5173"),
   NODE_ENV: process.env.NODE_ENV || "development",
   JWT_SECRET: process.env.JWT_SECRET,
   ARCJET_KEY: process.env.ARCJET_KEY,
