@@ -14,4 +14,6 @@ export const ENV = {
   EMAIL_FROM: process.env.EMAIL_FROM,
   EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
   ARCJET_ENV: process.env.ARCJET_ENV,
+
+  
 };
