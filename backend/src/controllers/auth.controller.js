@@ -12,21 +12,33 @@ export const signup = async (req, res) => {
 
   try {
     if (!fullName || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({ 
+        success: false,
+        message: "All fields are required" 
+      });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res.status(400).json({ 
+        success: false,
+        message: "Password must be at least 6 characters" 
+      });
     }
 
     // check if emailis valid: regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: "Invalid email format" });
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid email format" 
+      });
     }
 
     const user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    if (user) return res.status(400).json({ 
+      success: false,
+      message: "Email already exists" 
+    });
 
 
     const salt = await bcrypt.genSalt(10);
@@ -46,13 +58,18 @@ export const signup = async (req, res) => {
       // after CR:
       // Persist user first, then issue auth cookie
       const savedUser = await newUser.save();
-      generateToken(savedUser._id, res);
+      const token = generateToken(savedUser._id, res);
 
       res.status(201).json({
-        _id: newUser._id,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        profilePic: newUser.profilePic,
+        success: true,
+        message: "Signup successful",
+        token: token,
+        user: {
+          id: savedUser._id.toString(),
+          fullName: savedUser.fullName,
+          email: savedUser.email,
+          profilePic: savedUser.profilePic,
+        }
       });
 
       try {
@@ -61,11 +78,17 @@ export const signup = async (req, res) => {
         console.error("Failed to send welcome email:", error);
       }
     } else {
-      res.status(400).json({ message: "Invalid user data" });
+      res.status(400).json({ 
+        success: false,
+        message: "Invalid user data" 
+      });
     }
   } catch (error) {
     console.log("Error in signup controller:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 };
 
@@ -73,28 +96,46 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
+    return res.status(400).json({ 
+      success: false,
+      message: "Email and password are required" 
+    });
   }
 
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    if (!user) return res.status(400).json({ 
+      success: false,
+      message: "Invalid credentials" 
+    });
     // never tell the client which one is incorrect: password or email
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
+    if (!isPasswordCorrect) return res.status(400).json({ 
+      success: false,
+      message: "Invalid credentials" 
+    });
 
-    generateToken(user._id, res);
+    // Generate token and get it for response body
+    const token = generateToken(user._id, res);
 
     res.status(200).json({
-      _id: user._id,
-      fullName: user.fullName,
-      email: user.email,
-      profilePic: user.profilePic,
+      success: true,
+      message: "Login successful",
+      token: token,
+      user: {
+        id: user._id.toString(),
+        fullName: user.fullName,
+        email: user.email,
+        profilePic: user.profilePic,
+      }
     });
   } catch (error) {
     console.error("Error in login controller:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 };
 
