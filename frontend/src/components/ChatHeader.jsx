@@ -27,7 +27,14 @@ function ChatHeader() {
       <div className="flex items-center space-x-3">
         <div className={`avatar ${isOnline ? "online" : "offline"}`}>
           <div className="w-12 rounded-full">
-            <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
+            <img
+              src={selectedUser.profilePic || "/avatar.png"}
+              alt={selectedUser.fullName}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/avatar.png";
+              }}
+            />
           </div>
         </div>
 

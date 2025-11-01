@@ -1,0 +1,18 @@
+PORT = 3000
+MONGO_URI = mongodb+srv://Mohit_db_user:6xzXwMEEYUZ1wf0H@cluster0.j1sskcs.mongodb.net/talksy_db?retryWrites=true&w=majority&appName=Cluster0
+NODE_ENV = production
+JWT_SECRET = myjwtsecret
+
+RESEND_API_KEY = re_hxJejnci_3CJSgGhfdUUPUbGqFtGc8qh7
+
+EMAIL_FROM = "onboarding@resend.dev"
+EMAIL_FROM_NAME="Burak Orkmez"
+
+CLIENT_URL=https://localhost:5173
+
+CLOUDINARY_CLOUD_NAME = dhcbnri9o    
+CLOUDINARY_API_KEY = 119726323681971
+CLOUDINARY_API_SECRET = Tpo-53D-UVQdhZUb0RMPiyncSaM
+
+ARCJET_KEY = ajkey_01k83fm1hffbrt5d13ahtxs1b7
+ARCJET_ENV= development
