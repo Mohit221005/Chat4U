@@ -13,7 +13,13 @@ const __dirname = path.resolve();
 const PORT = ENV.PORT || 3000;
 
 app.use(express.json({ limit: "5mb" })); 
-app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
+// Modified server.js CORS configuration
+app.use(cors({
+  origin: ENV.CLIENT_URL,
+  credentials: true,
+  exposedHeaders: ['Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);

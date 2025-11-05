@@ -18,6 +18,9 @@ export const generateToken = (userId,res) => {
         sameSite:"strict",
         secure: ENV.NODE_ENV === "development" ? false : true,
     })
+    
+    // Return token so it can be included in response body for mobile apps
+    return token;
 }; 
 
 
