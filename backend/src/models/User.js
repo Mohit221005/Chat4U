@@ -18,11 +18,22 @@ const userSchema = new mongoose.Schema({
   },
   profilePic:{
     type:String,
-    default:"https://res.cloudinary.com/dyj24qk3c/image/upload/v1598706713/ProfilePic/default_profile_pic_1_xzv8xg.png"
+    default: "https://avatar.iran.liara.run/public"
   },
 },
 {timestamps:true }
-); 
+);
+
+/**
+ * Indexes for optimized query performance
+ */
+
+// Email is already unique, but explicit index for faster lookups
+userSchema.index({ email: 1 });
+
+// Text index on fullName for future search functionality
+// Supports queries: { $text: { $search: "search term" } }
+userSchema.index({ fullName: 'text' }); 
 
 const User = mongoose.model('User',userSchema);
 export default User;

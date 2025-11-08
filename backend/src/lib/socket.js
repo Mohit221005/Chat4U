@@ -1,42 +1,55 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
-import { ENV } from "./env.js";
+import config from "../config/index.js";
 import { socketAuthMiddleware } from "../middleware/socket.auth.middleware.js";
+import logger from "./logger.js";
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: [ENV.CLIENT_URL],
-    credentials: true,
-  },
+  cors: config.cors,
 });
 
-// apply authentication middleware to all socket connections
+// Apply authentication middleware to all socket connections
 io.use(socketAuthMiddleware);
 
-// we will use this function to check if the user is online or not
+/**
+ * Get the socket ID for a given user ID
+ * Used to check if a user is online and send real-time messages
+ * 
+ * @param {string} userId - MongoDB ObjectId of the user
+ * @returns {string|undefined} Socket ID if user is online, undefined otherwise
+ */
 export function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
 
-// this is for storig online users
-const userSocketMap = {}; // {userId:socketId}
+// Store online users: {userId: socketId}
+const userSocketMap = {};
 
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.user.fullName);
+  logger.info("User connected via Socket.IO", {
+    userId: socket.userId,
+    userName: socket.user?.fullName,
+    socketId: socket.id,
+  });
 
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
 
-  // io.emit() is used to send events to all connected clients
+  // Broadcast updated online users list to all clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // with socket.on we listen for events from clients
+  // Handle user disconnect
   socket.on("disconnect", () => {
-    console.log("A user disconnected", socket.user.fullName);
+    logger.info("User disconnected from Socket.IO", {
+      userId: socket.userId,
+      userName: socket.user?.fullName,
+      socketId: socket.id,
+    });
+    
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
