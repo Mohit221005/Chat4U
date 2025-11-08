@@ -1,147 +1,135 @@
+import messageService from "../services/message.service.js";
+import userService from "../services/user.service.js";
+import { asyncHandler } from "../middleware/error.middleware.js";
+import { getReceiverSocketId, io } from "../lib/socket.js";
+import logger from "../lib/logger.js";
 import cloudinary from "../lib/cloudinary.js";
 
-import { getReceiverSocketId, io } from "../lib/socket.js";
+/**
+ * Get all contacts (users) except the current user
+ * @route GET /api/messages/contacts
+ * @access Private
+ */
+export const getAllContacts = asyncHandler(async (req, res) => {
+  const loggedInUserId = req.user._id;
+  const users = await userService.getAllUsers(loggedInUserId);
 
-import Message from "../models/Message.js";
-import User from "../models/User.js";
-import mongoose from "mongoose";
+  // Return in format frontend expects
+  res.status(200).json(users);
+});
 
-export const getAllContacts = async (req, res) => {
-  try {
-    const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({
-      _id: { $ne: loggedInUserId },
-    }).select("-password");
+/**
+ * Get messages between current user and another user with pagination
+ * @route GET /api/messages/:id
+ * @access Private
+ * @query limit - Number of messages to fetch (default: 50, max: 100)
+ * @query before - Cursor for pagination (ISO timestamp)
+ */
+export const getMessagesByUserId = asyncHandler(async (req, res) => {
+  const myId = req.user._id;
+  const { id: otherUserId } = req.params;
+  const { limit, before } = req.query;
 
-    res.status(200).json(filteredUsers);
-  } catch (error) {
-    console.log("Error in getAllContacts:", error);
-    res.status(500).json({ message: "Server error" });
+  const result = await messageService.getMessagesBetweenUsers(myId, otherUserId, {
+    limit,
+    before,
+  });
+
+  // Return messages array directly for backward compatibility
+  // Frontend expects array, not wrapped in 'data' key
+  res.status(200).json(result.messages);
+});
+
+/**
+ * Send a message to another user
+ * @route POST /api/messages/send/:id
+ * @access Private
+ */
+export const sendMessage = asyncHandler(async (req, res) => {
+  const { text, image } = req.body;
+  const { id: receiverId } = req.params;
+  const senderId = req.user._id;
+
+  // Debug logging for troubleshooting
+  logger.debug("Send message request", {
+    senderId: senderId.toString(),
+    receiverId,
+    hasText: !!text,
+    hasImage: !!image,
+    textLength: text ? text.length : 0,
+  });
+
+  // Handle image upload to Cloudinary (HTTP/Infrastructure concern)
+  let imageUrl = "";
+  if (image) {
+    // Validate base64 format
+    const base64Regex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,/;
+    if (!base64Regex.test(image)) {
+      return res.status(400).json({
+        message: "Invalid image format. Expected base64-encoded image."
+      });
+    }
+
+    // Check approximate size (base64 is ~33% larger than binary)
+    const sizeInBytes = (image.length * 3) / 4;
+    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    if (sizeInBytes > maxSizeInBytes) {
+      return res.status(400).json({
+        message: "Image size exceeds 5MB limit."
+      });
+    }
+
+    // Upload to Cloudinary
+    try {
+      const uploadResponse = await cloudinary.uploader.upload(image, {
+        resource_type: "auto",
+        timeout: 60000, // 60 second timeout
+      });
+      imageUrl = uploadResponse.secure_url;
+    } catch (uploadError) {
+      logger.error("Cloudinary upload error", {
+        error: uploadError.message,
+        stack: uploadError.stack,
+      });
+      return res.status(500).json({
+        message: "Failed to upload image."
+      });
+    }
   }
-};
 
-export const getMessagesByUserId = async (req, res) => {
+  // Create message via service
+  const message = await messageService.sendMessage(senderId, receiverId, {
+    text: text || "",
+    image: imageUrl,
+  });
+
+  // Emit real-time message to receiver (Socket.IO concern)
   try {
-    const myId = req.user._id;
-    const { id: userToChatId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(userToChatId)) {
-      return res.status(400).json({ error: "Invalid user ID format" });
-    }
-
-    const messages = await Message.find({
-      $or: [
-        { senderId: myId, receiverId: userToChatId },
-        { senderId: userToChatId, receiverId: myId },
-      ],
-    });
-
-    res.status(200).json(messages);
-  } catch (error) {
-    console.log("Error in getMessages controller: ", error.message);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-export const sendMessage = async (req, res) => {
-  try {
-    const { text, image } = req.body;
-    const { id: receiverId } = req.params;
-    const senderId = req.user._id;
-
-    if (!text && !image) {
-      return res.status(400).json({ message: "Text or image is required." });
-    }
-    if (senderId.equals(receiverId)) {
-      return res
-        .status(400)
-        .json({ message: "Cannot send messages to yourself." });
-    }
-    const receiverExists = await User.exists({ _id: receiverId });
-    if (!receiverExists) {
-      return res.status(404).json({ message: "Receiver not found." });
-    }
-
-    let imageUrl;
-    if (image) {
-      // Validate base64 format
-      const base64Regex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,/;
-      if (!base64Regex.test(image)) {
-        return res
-          .status(400)
-          .json({
-            message: "Invalid image format. Expected base64-encoded image.",
-          });
-      }
-
-      // Check approximate size (base64 is ~33% larger than binary)
-      const sizeInBytes = (image.length * 3) / 4;
-      const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
-      if (sizeInBytes > maxSizeInBytes) {
-        return res
-          .status(400)
-          .json({ message: "Image size exceeds 5MB limit." });
-      }
-
-      // upload base64 image to cloudinary
-      try {
-        const uploadResponse = await cloudinary.uploader.upload(image, {
-          resource_type: "auto",
-          timeout: 60000, // 60 second timeout
-        });
-        imageUrl = uploadResponse.secure_url;
-      } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(500).json({ message: "Failed to upload image." });
-      }
-    }
-    const newMessage = new Message({
-      senderId,
-      receiverId,
-      text,
-      image: imageUrl,
-    });
-
-    await newMessage.save();
-    
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", newMessage);
+      io.to(receiverSocketId).emit("newMessage", message);
     }
-
-    res.status(201).json(newMessage);
-  } catch (error) {
-    console.log("Error in sendMessage controller: ", error.message);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (socketError) {
+    // Log socket error but don't fail the request
+    logger.warn("Socket.IO emit error", { error: socketError.message });
   }
-};
 
-export const getChatPartners = async (req, res) => {
-  try {
-    const loggedInUserId = req.user._id;
+  // Return message object directly for backward compatibility
+  res.status(201).json(message);
+});
 
-    // find all the messages where the logged-in user is either sender or receiver
-    const messages = await Message.find({
-      $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
-    });
+/**
+ * Get all chat partners for the logged-in user
+ * Returns users with conversation history, sorted by last message time
+ * 
+ * @route GET /api/messages/users (legacy route name)
+ * @access Private
+ */
+export const getChatPartners = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const partners = await messageService.getChatPartners(userId);
 
-    const chatPartnerIds = [
-      ...new Set(
-        messages.map((msg) =>
-          msg.senderId.toString() === loggedInUserId.toString()
-            ? msg.receiverId.toString()
-            : msg.senderId.toString()
-        )
-      ),
-    ];
-
-    const chatPartners = await User.find({
-      _id: { $in: chatPartnerIds },
-    }).select("-password");
-
-    res.status(200).json(chatPartners);
-  } catch (error) {
-    console.error("Error in getChatPartners: ", error.message);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
+  // Return array directly for backward compatibility
+  // Frontend expects array at root level
+  res.status(200).json(partners);
+});

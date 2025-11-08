@@ -1,167 +1,127 @@
-
-
+import authService from "../services/auth.service.js";
+import { asyncHandler } from "../middleware/error.middleware.js";
 import { sendWelcomeEmail } from "../emails/emailHandlers.js";
-import { generateToken } from "../lib/utils.js";
-import User from "../models/User.js";
-import bcrypt from "bcryptjs";
-import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
+import config from "../config/index.js";
+import logger from "../lib/logger.js";
 
-export const signup = async (req, res) => {
-  const { fullName, email, password } = req.body;
-
-  try {
-    if (!fullName || !email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "All fields are required" 
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Password must be at least 6 characters" 
-      });
-    }
-
-    // check if emailis valid: regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Invalid email format" 
-      });
-    }
-
-    const user = await User.findOne({ email });
-    if (user) return res.status(400).json({ 
-      success: false,
-      message: "Email already exists" 
-    });
-
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const newUser = new User({
-      fullName,
-      email,
-      password: hashedPassword,
-    });
-
-    if (newUser) {
-      // before CR:
-      // generateToken(newUser._id, res);
-      // await newUser.save();
-
-      // after CR:
-      // Persist user first, then issue auth cookie
-      const savedUser = await newUser.save();
-      const token = generateToken(savedUser._id, res);
-
-      res.status(201).json({
-        success: true,
-        message: "Signup successful",
-        token: token,
-        user: {
-          id: savedUser._id.toString(),
-          fullName: savedUser.fullName,
-          email: savedUser.email,
-          profilePic: savedUser.profilePic,
-        }
-      });
-
-      try {
-        await sendWelcomeEmail(savedUser.email, savedUser.fullName, ENV.CLIENT_URL);
-      } catch (error) {
-        console.error("Failed to send welcome email:", error);
-      }
-    } else {
-      res.status(400).json({ 
-        success: false,
-        message: "Invalid user data" 
-      });
-    }
-  } catch (error) {
-    console.log("Error in signup controller:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
-  }
+/**
+ * Set JWT cookie in response
+ * @param {Object} res - Express response object
+ * @param {string} token - JWT token
+ */
+const setTokenCookie = (res, token) => {
+  res.cookie(config.jwt.cookieName, token, {
+    maxAge: config.jwt.cookieMaxAge,
+    httpOnly: true,
+    sameSite: "strict",
+    secure: config.server.nodeEnv === "production",
+  });
 };
 
-export const login = async (req, res) => {
-  const { email, password } = req.body;
+/**
+ * Register a new user
+ * @route POST /api/auth/signup
+ * @access Public
+ */
+export const signup = asyncHandler(async (req, res) => {
+  const { user, token } = await authService.register(req.body);
 
-  if (!email || !password) {
-    return res.status(400).json({ 
-      success: false,
-      message: "Email and password are required" 
+  // Set JWT cookie
+  setTokenCookie(res, token);
+
+  // Send welcome email asynchronously (don't wait for it)
+  sendWelcomeEmail(user.email, user.fullName, config.server.clientUrl).catch((error) => {
+    logger.error("Failed to send welcome email", {
+      error: error.message,
+      userId: user._id,
     });
-  }
+  });
 
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ 
-      success: false,
-      message: "Invalid credentials" 
-    });
-    // never tell the client which one is incorrect: password or email
+  // Return in format frontend expects (user and token at root level)
+  res.status(201).json({
+    success: true,
+    message: "Signup successful",
+    token,
+    user: {
+      id: user._id.toString(),
+      fullName: user.fullName,
+      email: user.email,
+      profilePic: user.profilePic,
+    },
+  });
+});
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) return res.status(400).json({ 
-      success: false,
-      message: "Invalid credentials" 
-    });
+/**
+ * Login user
+ * @route POST /api/auth/login
+ * @access Public
+ */
+export const login = asyncHandler(async (req, res) => {
+  const { user, token } = await authService.login(req.body);
 
-    // Generate token and get it for response body
-    const token = generateToken(user._id, res);
+  // Set JWT cookie
+  setTokenCookie(res, token);
 
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      token: token,
-      user: {
-        id: user._id.toString(),
-        fullName: user.fullName,
-        email: user.email,
-        profilePic: user.profilePic,
-      }
-    });
-  } catch (error) {
-    console.error("Error in login controller:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
-  }
-};
+  // Return in format frontend expects (user and token at root level)
+  res.status(200).json({
+    success: true,
+    message: "Login successful",
+    token,
+    user: {
+      id: user._id.toString(),
+      fullName: user.fullName,
+      email: user.email,
+      profilePic: user.profilePic,
+    },
+  });
+});
 
-export const logout = (_, res) => {
-  res.cookie("jwt", "", { maxAge: 0 });
+/**
+ * Logout user
+ * @route POST /api/auth/logout
+ * @access Public
+ */
+export const logout = asyncHandler(async (req, res) => {
+  res.cookie(config.jwt.cookieName, "", { maxAge: 0 });
   res.status(200).json({ message: "Logged out successfully" });
-};
+});
 
-export const updateProfile = async (req, res) => {
-  try {
-    const { profilePic } = req.body;
-    if (!profilePic) return res.status(400).json({ message: "Profile pic is required" });
+/**
+ * Update user profile
+ * @route PUT /api/auth/update-profile
+ * @access Private
+ */
+export const updateProfile = asyncHandler(async (req, res) => {
+  const { profilePic } = req.body;
+  const userId = req.user._id;
 
-    const userId = req.user._id;
+  let updates = {};
 
+  // Handle Cloudinary upload if profile picture provided
+  if (profilePic) {
     const uploadResponse = await cloudinary.uploader.upload(profilePic);
-
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { profilePic: uploadResponse.secure_url },
-      { new: true }
-    );
-
-    res.status(200).json(updatedUser);
-  } catch (error) {
-    console.log("Error in update profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    updates.profilePic = uploadResponse.secure_url;
   }
-};
+
+  // Add any other allowed updates
+  if (req.body.fullName) {
+    updates.fullName = req.body.fullName;
+  }
+
+  const user = await authService.updateProfile(userId, updates);
+
+  // Return user object directly for backward compatibility
+  res.status(200).json(user);
+});
+
+/**
+ * Check authentication status
+ * @route GET /api/auth/check
+ * @access Private
+ */
+export const checkAuth = asyncHandler(async (req, res) => {
+  const user = await authService.getCurrentUser(req.user._id);
+  // Return user object directly for backward compatibility
+  res.status(200).json(user);
+});

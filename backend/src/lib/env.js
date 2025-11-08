@@ -4,7 +4,7 @@ export const ENV = {
   PORT: process.env.PORT,
   MONGO_URI: process.env.MONGO_URI,
   CLIENT_URL: process.env.CLIENT_URL || (process.env.NODE_ENV === "production" ? undefined : "http://localhost:5173"),
-  NODE_ENV: process.env.NODE_ENV || "development",
+  NODE_ENV: process.env.NODE_ENV || "production",
   JWT_SECRET: process.env.JWT_SECRET,
   ARCJET_KEY: process.env.ARCJET_KEY,
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
