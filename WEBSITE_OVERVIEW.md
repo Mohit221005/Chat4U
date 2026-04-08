@@ -61,7 +61,7 @@ Talksy/
   - Pages: `LoginPage.jsx`, `SignUpPage.jsx`, `ChatPage.jsx`
 - **State Management**
   - `src/store/`: Zustand stores for auth/session and chat state
-- **Styling**
+- **Styling**. .
   - TailwindCSS configured via `tailwind.config.js` and `index.css`
 - **API**
   - Typical pattern: a `lib` helper for Axios instance (baseURL), used by pages/components
